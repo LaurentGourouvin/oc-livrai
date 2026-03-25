@@ -113,3 +113,51 @@ Il semblerait qu'il y ait un simple rafraîchissement de la page.
 #### Fonctionnalité de facturation
 Lorsque nous facturons une livraison, aucune demande de confirmation n'est demandée. Si une erreur de saisie est effectuée,
 l'action se déclenche quand même sans avoir la possibilité de revenir en arrière ou d'annuler la facturation.
+
+## Analyse technique de l'application de base
+
+### Authentification 
+Le package `com.livrai` possède une gestion de l'authentification et une protection de route liée à une session.  
+
+Lorsqu'un utilisateur se connecte, nous passons dans un filtre d'authentification qui nous configure la session et les 
+requêtes http entrantes. L'application possède deux **routes publiques** `/logout` et `/login`.
+
+### DAO (Data Access Object)
+Ce dossier regroupe toutes les informations liées à la base de données.
+
+#### AbstractDao
+Ce fichier permet de configurer la partie de connexion à la base de données. Notamment en stipulant le driver utiliser `com.mysql.cj.jdbc.Driver`
+ainsi que la chaîne de connexion :  
+```java
+connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/livrai", "livrai_user", "livrai_pass");
+```
+
+#### DeliveryDao
+Ce fichier agit comme le repository des deliveries. Cette classe implémente 8 fonctions métiers de l'application : 
+- createDelivery
+- getDeliveryById
+- getAllDeliveries
+- getAllDeliveriesByUserId
+- acceptDeliveryById
+- rejectDeliveryById
+- billDeliveryById
+- deleteDelivery
+
+Chaque fonction effectue des reqûete SQL préparées qui évites les injections de code.
+
+#### UserDao
+Ce fichier agit comme le repository des users. Cette classe implément x fonctions liées aux utilisateurs : 
+- addUser
+- getUserById
+- getUserByEmail
+- getAllNonAdminUsers
+- updateUser
+
+### Problématiques liées aux DAO
+#### Gestion des mots de passe
+1. Les mots de passe sont stockés en clair en base de données, sans hashage (bcrypt, SHA-256...). Une attaque sur la base
+   expose directement les credentials de tous les utilisateurs.
+
+2. Les objets User retournés par le DAO incluent systématiquement le mot de passe, y compris dans des contextes où il n'est pas
+   nécessaire (liste des clients, récupération par ID...). Dans une architecture API REST, ces données seraient exposées
+   dans les réponses HTTP.
