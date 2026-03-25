@@ -1,6 +1,6 @@
-CREATE DATABASE livrai;
+USE livrai;
 
-CREATE TABLE user (
+CREATE TABLE IF NOT EXISTS user (
   id INT AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
   name VARCHAR(64) NOT NULL,
@@ -8,7 +8,7 @@ CREATE TABLE user (
   admin BOOLEAN NOT NULL DEFAULT FALSE
 );
 
-CREATE TABLE delivery (
+CREATE TABLE IF NOT EXISTS delivery (
   id INT NOT NULL AUTO_INCREMENT,
   userId INT NOT NULL,
   volume INT NOT NULL,
@@ -18,3 +18,6 @@ CREATE TABLE delivery (
   PRIMARY KEY (id),
   FOREIGN KEY (userId) REFERENCES user(id)
 );
+
+INSERT INTO user (email, name, password, admin) VALUES
+    ('admin@livrai.com', 'Livrai', 'admin', TRUE);
