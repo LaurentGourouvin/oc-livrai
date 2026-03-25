@@ -105,3 +105,11 @@ ciblant ainsi un servlet qui ne gère pas les requêtes POST.
 La fonctionnalité de refus est donc **non opérationnelle** : un admin ne peut pas
 refuser une livraison, qui restera bloquée indéfiniment au statut `En attente`
 côté client. Ce bug révèle également une absence de tests sur cette fonctionnalité.
+
+#### Fonctionnalité de connexion
+Lorsque nous saisissons de mauvaises informations, aucune alerte ou message n'est affiché sur la page.
+Il semblerait qu'il y ait un simple rafraîchissement de la page.
+
+#### Fonctionnalité de facturation
+Lorsque nous facturons une livraison, aucune demande de confirmation n'est demandée. Si une erreur de saisie est effectuée,
+l'action se déclenche quand même sans avoir la possibilité de revenir en arrière ou d'annuler la facturation.
