@@ -161,3 +161,28 @@ Ce fichier agit comme le repository des users. Cette classe implément x fonctio
 2. Les objets User retournés par le DAO incluent systématiquement le mot de passe, y compris dans des contextes où il n'est pas
    nécessaire (liste des clients, récupération par ID...). Dans une architecture API REST, ces données seraient exposées
    dans les réponses HTTP.
+
+### Beans
+Sur la partie des beans cela semble refléter l'exactitude de mes tables en base de données. Cependant, je m'aperçois qu'il y a
+dans le beans `Delivery` une information n'existant pas en base de donnée. 
+
+```java
+private String clientName;
+```
+Cette information n'existe pas sur la table `delivery`. Pour rappel voici ce que le script d'initialisation de la base de donnée
+crée concernant la table `delivery`: 
+```sql
+CREATE TABLE IF NOT EXISTS delivery (
+  id INT NOT NULL AUTO_INCREMENT,
+  userId INT NOT NULL,
+  volume INT NOT NULL,
+  weight INT NOT NULL,
+  price DECIMAL(10,2),
+  status VARCHAR(255),
+  PRIMARY KEY (id),
+  FOREIGN KEY (userId) REFERENCES user(id)
+);
+```
+
+Ce champ est ajouté à la volée par la servlet pour afficher le nom du client dans le tableau admin. C'est un mélange entre
+données métier et données d'affichage dans le même objet, ce qui n'est pas une bonne pratique.
