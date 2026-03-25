@@ -21,3 +21,87 @@ Le plan d’audit concernant LiVrai est le suivant :
 4.	Description technique (+ diagramme de composants)
 5.	Points forts et déficiences
 6.	Conclusion
+
+## Analyse de l'application après test
+
+## Fonctionnalités
+
+La page d'accueil du CRM est une page de connexion contenant un formulaire simple : 
+- Email
+- Mot de passe
+
+### Parcours Admin
+
+Lorsqu'on se connecte via un compte admin, nous avons deux fonctionnalités visible dans le menu : 
+- Clients
+- Livraisons
+
+#### Clients
+Sur l'écran **clients** il y a deux actions : 
+- l'affichage de l'ensemble des clients
+- la possibilité de créer des nouveaux client au CRM
+
+#### Livraisons
+Cet écran permet d'afficher les livraisons à venir et mes livraisons passées.
+
+Pour les livraisons à venir : 
+
+| ID | Volume    | Poids | Statut |            |                  |
+|----|-----------|-------|--------|------------|------------------|
+| 1  | NomClient | 10    | En 120 | En Attente | Accepter/Refuser |
+
+Lorsqu'on clique sur l'action `Accepter`, un formulaire remplace ce bouton avec un champ pour saisir le montant à facturer.  
+Du côté client, la livraison est passé au statut `Acceptée`.  
+Une fois qu'on facture cette livraison, cette livraison est positionnée dans nos livraison passées sous cette forme :  
+
+| ID | Volume    | Poids | Prix      | Statut   |
+|----|-----------|-------|-----------|----------|
+| 1  | NomClient | 10    | 120 120.0 | Terminée |
+
+**Attention lors d'un refus d'une livraison, nous avons une erreur HTTP 405 sur l'application. Un admin ne peut donc pas refuser de livraison !**
+
+### Parcours Client
+
+Lorsqu'on se connecte via un compte client, nous avons deux fonctionnalités visible dans le menu :
+- Commande
+- Livraisons
+
+#### Commande
+Cet écran nous permet de créer une nouvelle demande de livraison.  
+Un formulaire de nous permet de saisir :
+- Le volume
+- Le poids
+
+Une fois le formulaire validé, cette commande est disponible dans l'onglet Livraisons.
+
+#### Livraisons
+Cet écran affiche nos livraisons à venir sous cette forme :   
+
+| ID | Volume | Poids | Statut |
+|----|--------|-------|--------|
+| 1  | 10     | 120   | En attente |
+
+Mais aussi nos livraisons passées sous cette forme : 
+
+| ID | Volume | Poids     | Prix     | Statut     |
+|----|--------|-----------|----------|------------|
+| 1  | 10     | 120 120.0 | Terminée | En Attente | 
+
+#### Anomalies d'affichage
+L'affichage des données dans les tableaux présente des incohérences :
+- Les colonnes **Poids** et **Prix** semblent fusionnées (`120 120.0`)
+  dans la vue des livraisons passées, côté admin et client.
+- L'en-tête des colonnes ne correspond pas toujours aux données affichées.
+
+#### Fonctionnalité manquante
+- L'action **Refuser** une livraison provoque une erreur **HTTP 405**
+  (méthode POST non supportée). La fonctionnalité est présente dans l'UI
+  mais non implémentée côté serveur.
+
+Cette erreur est causée par une faute de frappe dans le fichier `deliveries.jsp` :
+le formulaire "Refuser" poste sur l'URL `livraisons` au lieu de `livraison`,
+ciblant ainsi un servlet qui ne gère pas les requêtes POST.
+
+La fonctionnalité de refus est donc **non opérationnelle** : un admin ne peut pas
+refuser une livraison, qui restera bloquée indéfiniment au statut `En attente`
+côté client. Ce bug révèle également une absence de tests sur cette fonctionnalité.
