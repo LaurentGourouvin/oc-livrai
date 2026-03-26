@@ -246,6 +246,24 @@ Ce servlet gère deux actions :
 - `doPost()`, crée un nouveau client à partir des données du formulaire (email, nom, mot de passe), puis réaffiche la liste.
 
 **Points de vigilance** :
-- Aucune validation des données saisies — un email invalide ou un mot de passe vide seraient acceptés sans erreur.
+- Aucune validation des données saisies, un email invalide ou un mot de passe vide seraient acceptés sans erreur.
 - Le mot de passe est transmis et stocké en clair, ce qui confirme le constat fait sur le DAO.
 - La liste retournée par `getAllNonAdminUsers()` inclut les mots de passe de tous les clients — des données inutiles et sensibles dans ce contexte.
+
+### web.xml
+Le fichier `web.xml` joue le rôle de **routeur** de l'application.
+Il définit le mapping entre les URLs et les servlets :
+
+| URL | Servlet |
+|-----|---------|
+| `/` | HomeServlet |
+| `/login` | LoginServlet |
+| `/logout` | LogoutServlet |
+| `/clients` | ClientsServlet |
+| `/livraisons` | DeliveriesServlet |
+| `/livraison` | DeliveryServlet |
+| `/commande` | CommandServlet |
+
+Le filtre `AuthenticationFilter` est appliqué sur `/*` toutes les requêtes passent donc par ce filtre avant d'atteindre une servlet.
+
+### JSP
