@@ -282,3 +282,35 @@ que par un servlet. C'est une bonne pratique de sécurité.
 | `taglibs.jsp` | Déclaration des bibliothèques JSTL, inclus automatiquement dans toutes les JSP via le `web.xml` |
 
 Les vues utilisent **JSTL** pour la logique (boucles, conditions) et **EL** (`${ }`) pour afficher les données transmises par les servlets.
+
+## Points forts et risque
+
+### Points forts
+- Les requêtes SQL préparées dans les DAO protègent contre les injections SQL.
+- Les JSP placées dans `WEB-INF/` sont inaccessibles directement par URL bonne pratique de sécurité.
+- Le filtre `AuthenticationFilter` appliqué sur `/*` assure une protection globale des routes sans dupliquer la logique dans chaque servlet.
+- L'architecture suit globalement le pattern MVC, ce qui apporte une séparation de base entre les couches.
+
+### Les risques
+
+#### Sécurité
+- Les mots de passe sont stockés et comparés en clair, aucun hashage n'est utilisé.
+- Les objets `User` retournés par les DAO incluent systématiquement le mot de passe, même quand il n'est pas nécessaire.
+- Aucune validation des données saisies dans les formulaires.
+
+#### Architecture
+- Le MVC est reconnaissable mais incomplet : les servlets embarquent directement la logique métier (filtrage des livraisons, gestion des rôles...) qui devrait
+être déportée dans une couche service dédiée.
+- Mélange entre données métier et données d'affichage dans les beans (`clientName`).
+- Aucune gestion des erreurs dans les DAO et les servlets.
+
+#### Performance et disponibilité
+- `AbstractDao` maintient une connexion par instance de DAO via un pattern singleton. Cependant, chaque servlet instancie ses DAO à chaque requête
+  (`new UserDao()`, `new DeliveryDao()`), ce qui peut multiplier les connexions ouvertes simultanément sous forte charge.
+- Absence de pool de connexions (HikariCP, DBCP...) sous forte volumétrie, la gestion des connexions deviendra un goulot d'étranglement critique pour LiVrai.
+- L'architecture monolithique JSP/Servlet est difficile à scaler horizontalement pour absorber la croissance des volumes.Servlet est difficile à scaler 
+horizontalement pour absorber la croissance des volumes.
+- Les requêtes de type `getAllDeliveries()` ramènent l'intégralité des données sans pagination. Avec la croissance du volume de commandes de LiVrai, charger
+toutes les livraisons en mémoire à chaque requête deviendra ingérable.
+- Aucun index n'est défini explicitement sur la table `delivery`. Les recherches par `userId` ou par `status` seront de plus en plus lentes à mesure que le
+volume de données augmente.
