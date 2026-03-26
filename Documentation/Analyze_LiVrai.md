@@ -314,3 +314,40 @@ horizontalement pour absorber la croissance des volumes.
 toutes les livraisons en mémoire à chaque requête deviendra ingérable.
 - Aucun index n'est défini explicitement sur la table `delivery`. Les recherches par `userId` ou par `status` seront de plus en plus lentes à mesure que le
 volume de données augmente.
+
+### Diagramme architecture de l'application existante
+
+```mermaid
+graph TD
+    Browser["🌐 Navigateur"]
+
+    subgraph Presentation["Couche Présentation"]
+        JSP["JSP + JSTL/EL\nclients.jsp, deliveries.jsp\ncommand.jsp, login.jsp..."]
+    end
+
+    subgraph Controller["Couche Contrôleur"]
+        Filter["AuthenticationFilter"]
+        Servlets["Servlets\nLoginServlet, LogoutServlet\nDeliveryServlet, DeliveriesServlet\nClientsServlet, CommandServlet"]
+    end
+
+    subgraph Data["Couche Accès aux données"]
+        DAO["DAO\nUserDao, DeliveryDao\n(AbstractDao)"]
+        Beans["Beans\nUser, Delivery"]
+    end
+
+    subgraph DB["Base de données"]
+        MySQL["MySQL 8\nlivrai"]
+        Tables["Tables : user, delivery"]
+    end
+
+    Browser -->|"HTTP Request"| Filter
+    Filter -->|"Session valide"| Servlets
+    Filter -->|"Non authentifié"| JSP
+    Servlets -->|"forward"| JSP
+    JSP -->|"HTTP Response"| Browser
+    Servlets --> Beans
+    Servlets --> DAO
+    DAO --> Beans
+    DAO -->|"JDBC"| MySQL
+    MySQL --- Tables
+```
