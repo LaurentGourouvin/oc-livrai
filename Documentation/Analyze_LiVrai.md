@@ -266,4 +266,19 @@ Il définit le mapping entre les URLs et les servlets :
 
 Le filtre `AuthenticationFilter` est appliqué sur `/*` toutes les requêtes passent donc par ce filtre avant d'atteindre une servlet.
 
-### JSP
+### JSP (Views)
+Les vues sont toutes situées dans `WEB-INF/` ce qui les rend inaccessibles directement par URL, elles ne peuvent être appelées
+que par un servlet. C'est une bonne pratique de sécurité.
+
+| Fichier | Rôle |
+|---------|------|
+| `index.jsp` | Page d'accueil |
+| `login.jsp` | Formulaire de connexion |
+| `home.jsp` | Tableau de bord après connexion |
+| `clients.jsp` | Liste et création des clients |
+| `deliveries.jsp` | Liste des livraisons (à venir + passées) |
+| `command.jsp` | Formulaire de création de commande |
+| `navbar.jsp` | Composant de navigation inclus dans les autres vues |
+| `taglibs.jsp` | Déclaration des bibliothèques JSTL, inclus automatiquement dans toutes les JSP via le `web.xml` |
+
+Les vues utilisent **JSTL** pour la logique (boucles, conditions) et **EL** (`${ }`) pour afficher les données transmises par les servlets.
