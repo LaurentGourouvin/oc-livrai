@@ -18,6 +18,8 @@ L'audit de l'application existante a mis en évidence plusieurs problématiques 
 - **Sécurité** : mots de passe en clair, absence de validation des données
 - **Maintenabilité** : architecture MVC incomplète, logique métier dans les contrôleurs (servlet)
 - **Évolutivité** : architecture monolithique difficile à faire évoluer et à scaler
+- **Accès aux données** : migration du pattern DAO/JDBC manuel vers **Spring Data JPA** (ORM Hibernate), apportant une meilleure abstraction, 
+moins de code verbeux et une gestion des transactions plus robuste.
 
 ## Grandes orientations de l'architecture cible
 
