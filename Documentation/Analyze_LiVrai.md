@@ -186,3 +186,66 @@ CREATE TABLE IF NOT EXISTS delivery (
 
 Ce champ est ajouté à la volée par la servlet pour afficher le nom du client dans le tableau admin. C'est un mélange entre
 données métier et données d'affichage dans le même objet, ce qui n'est pas une bonne pratique.
+
+### Servlets
+Dans le projet les servlets agissent comme des contrôleurs.  
+
+Nous sommes donc dans une architecture qui s'approche du MVC (Model View Controller).  
+
+1. Le dossier servlet représente la partie `Controller`.
+2. Le dossier bean représente la partie `Model`.
+3. Le dossier webapp représente la partie `View`.
+
+#### HomeServlet
+Ce servlet permet l'affichage de la page d'accueil. Lorsqu'un utilisateur se rendra sur cette page, après s'être connecté, 
+une requête HTTP GET sera effectuée qui rendra donc la vue index, correspondant à `index.jsp`. Et grâce au filtre d'authentification,
+si l'utilisateur n'est pas connecté, il sera redirigé sur la page `/login` -> `login.jsp`.
+
+#### LoginServlet
+Ce servlet gère deux actions distinctes :
+1. `doGet()` qui vérifie si l'utilisateur est déjà connecté. Si oui, redirige vers l'accueil. Sinon, affiche la page de login.
+2. `doPost()` qui traite le formulaire de connexion en vérifiant email + mot de passe en base, puis ouvre une session.
+
+**Points de vigilance identifiés :**
+- La comparaison du mot de passe se fait en clair : `user.getPassword().equals(password)`. Aucun hashage n'est utilisé, ce 
+qui confirme le constat fait sur le DAO.
+- En cas d'échec de connexion, le servlet rappelle `doGet()` sans aucun message d'erreur, ce qui explique le simple 
+rafraîchissement observé lors des tests UX.
+
+#### LogoutServlet
+Ce servlet gère la déconnexion de l'utilisateur à l'aide de la méthode doGet(). Si l'utilisateur est connecté, c'est à dire
+qu'il a une session valide, celle-ci sera invalidé et entrainera donc une redirection vers la page de `/login`.
+
+#### DeliveryServlet
+Ce servlet permet de gérer les actions sur une livraison : 
+- Accepter (`ACCEPT`)
+- Refuser (`REJECT`)
+- Facturer (`BILL`)
+
+#### DeliveriesServlet
+Ce servlet récupère et affiche les livraisons via `doGet()`. Il adapte les données selon le rôle de l'utilisateur : un admin 
+voit toutes les livraisons, un client ne voit que les siennes.
+
+**Point de vigilance** : ce servlet effectue plusieurs appels DAO successifs (livraisons + clients) sans aucune gestion des 
+erreurs ni transaction. Si un appel échoue, aucun message n'est retourné à l'utilisateur.
+
+C'est également ici que `clientName` est injecté dans le bean `Delivery`, confirmant le mélange entre logique métier et logique de 
+présentation identifié dans l'analyse des beans.
+
+#### CommandServlet
+Ce servlet gère deux actions :
+- `doGet()` affiche le formulaire de création de commande.
+- `doPost()` crée une nouvelle livraison en base à partir du volume et du poids saisis, puis réaffiche le formulaire.
+
+**Point de vigilance** : aucune validation des données saisies n'est effectuée, le volume et le poids sont convertis directement en `int`
+sans vérifier qu'ils sont positifs ou non nuls.
+
+#### ClientsServlet
+Ce servlet gère deux actions :
+- `doGet()`, récupère la liste de tous les clients (non admin) et affiche la vue `clients.jsp`.
+- `doPost()`, crée un nouveau client à partir des données du formulaire (email, nom, mot de passe), puis réaffiche la liste.
+
+**Points de vigilance** :
+- Aucune validation des données saisies — un email invalide ou un mot de passe vide seraient acceptés sans erreur.
+- Le mot de passe est transmis et stocké en clair, ce qui confirme le constat fait sur le DAO.
+- La liste retournée par `getAllNonAdminUsers()` inclut les mots de passe de tous les clients — des données inutiles et sensibles dans ce contexte.
