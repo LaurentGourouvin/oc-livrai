@@ -1,0 +1,17 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: livrai-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: livrai
+      MYSQL_USER: livrai_user
+      MYSQL_PASSWORD: livrai_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./db/init-script.sql:/docker-entrypoint-initdb.d/init-script.sql
+      - livrai-db-data:/var/lib/mysql
+
+volumes:
+  livrai-db-data:

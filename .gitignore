@@ -1,2 +1,6 @@
 .project
 .idea
+apache-tomcat-9.0.116.tar.gz
+apache/
+out/
+.DS_Store
