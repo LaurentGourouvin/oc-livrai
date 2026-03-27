@@ -1,0 +1,13 @@
+FACTURE, 11 DELIVERY, 11 BILL
+BILL: id, amount, created_at, updated_at
+UTILISE, 1N ADDRESS, 11 COMMAND
+ADDRESS: id, street, city, zip_code, country, created_at, updated_at
+POSSEDE_ADRESSE, 1N USER, 11 ADDRESS
+ROLE: id, name, created_at, updated_at
+
+DELIVERY: id, status, scheduled_at, created_at, updated_at
+GENERE, 11 COMMAND, 11 DELIVERY
+COMMAND: id, volume, weight, created_at, updated_at
+PASSE, 1N USER, 11 COMMAND
+USER: id, email, name, password, phone, created_at, updated_at
+POSSEDE, 1N ROLE, 11 USER:

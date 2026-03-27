@@ -287,6 +287,7 @@ BILL (id, amount, created_at, updated_at, #delivery_id)
 ```
 
 #### MCD
+![MCD](diagrams/Next_Architecture/MCD/MCD.svg)
 
 ### Frontend
 
@@ -526,3 +527,150 @@ graph TD
     Features -->|"HTTP + JWT - JSON"| TokenCheck
     Models --> HikariCP
 ```
+
+### Stratégie de migration
+
+La refonte implique deux niveaux de migration simultanés : un changement de **moteur de base de données** (MySQL 8 → PostgreSQL 18) et 
+une **restructuration complète du schéma de données**.  
+
+#### Données à migrer
+
+| Ancienne table | Nouvelle(s) table(s) | Transformation nécessaire |
+|----------------|---------------------|--------------------------|
+| `user` | `role` + `user` | Convertir le booléen `admin` en `role_id` |
+| `delivery` | `command` + `delivery` | Créer une `command` pour chaque `delivery` existante |
+
+#### Script de la nouvelle architecture 
+
+```sql
+-- ============================================================
+-- Script de création de la base de données LiVrai
+-- PostgreSQL 18
+-- ============================================================
+
+-- Création du type ENUM pour les statuts de livraison
+CREATE TYPE delivery_status AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'DONE');
+
+-- Table : role
+CREATE TABLE IF NOT EXISTS role (
+    id         SERIAL PRIMARY KEY,
+    name       VARCHAR(64)  NOT NULL UNIQUE,
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP    NOT NULL DEFAULT NOW()
+    );
+
+-- Données initiales : rôles (ordre important: CLIENT aura l'id 2)
+INSERT INTO role (id, name) VALUES
+    (1, 'ADMIN'),
+    (2, 'CLIENT'),
+    (3, 'SERVICE_COMMERCIAL'),
+    (4, 'SERVICE_LIVRAISON');
+
+-- Table : user
+CREATE TABLE IF NOT EXISTS "user" (
+    id         SERIAL PRIMARY KEY,
+    email      VARCHAR(255) NOT NULL UNIQUE,
+    name       VARCHAR(128) NOT NULL,
+    password   VARCHAR(255) NOT NULL,
+    phone      VARCHAR(20),
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    role_id    INT          NOT NULL DEFAULT 2,
+    CONSTRAINT fk_user_role FOREIGN KEY (role_id) REFERENCES role(id)
+    );
+
+-- Table : address
+CREATE TABLE IF NOT EXISTS address (
+    id         SERIAL PRIMARY KEY,
+    street     VARCHAR(255) NOT NULL,
+    city       VARCHAR(128) NOT NULL,
+    zip_code   VARCHAR(16)  NOT NULL,
+    country    VARCHAR(64)  NOT NULL,
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    user_id    INT          NOT NULL,
+    CONSTRAINT fk_address_user FOREIGN KEY (user_id) REFERENCES "user"(id)
+    );
+
+-- Table : command
+CREATE TABLE IF NOT EXISTS command (
+    id         SERIAL PRIMARY KEY,
+    volume     INT          NOT NULL CHECK (volume > 0),
+    weight     INT          NOT NULL CHECK (weight > 0),
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    user_id    INT          NOT NULL,
+    address_id INT          NOT NULL,
+    CONSTRAINT fk_command_user    FOREIGN KEY (user_id)    REFERENCES "user"(id),
+    CONSTRAINT fk_command_address FOREIGN KEY (address_id) REFERENCES address(id)
+    );
+
+-- Table : delivery
+CREATE TABLE IF NOT EXISTS delivery (
+    id           SERIAL PRIMARY KEY,
+    status       delivery_status NOT NULL DEFAULT 'PENDING',
+    scheduled_at TIMESTAMP,
+    created_at   TIMESTAMP       NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP       NOT NULL DEFAULT NOW(),
+    command_id   INT             NOT NULL UNIQUE,
+    CONSTRAINT fk_delivery_command FOREIGN KEY (command_id) REFERENCES command(id)
+    );
+
+-- Table : bill
+CREATE TABLE IF NOT EXISTS bill (
+    id          SERIAL PRIMARY KEY,
+    amount      DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+    created_at  TIMESTAMP     NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP     NOT NULL DEFAULT NOW(),
+    delivery_id INT           NOT NULL UNIQUE,
+    CONSTRAINT fk_bill_delivery FOREIGN KEY (delivery_id) REFERENCES delivery(id)
+    );
+
+-- Index pour optimiser les recherches fréquentes
+CREATE INDEX idx_user_email      ON "user"(email);
+CREATE INDEX idx_user_role       ON "user"(role_id);
+CREATE INDEX idx_command_user    ON command(user_id);
+CREATE INDEX idx_delivery_status ON delivery(status);
+```
+
+#### Points de vigilance
+
+**Mots de passe en clair**  
+Les mots de passe de l'ancienne base sont stockés en clair. Lors de la migration, il suffira de les hasher avec **bcrypt** et de 
+les stocker dans la nouvelle base. Aucune intervention des utilisateurs n'est nécessaire.
+
+C'est d'ailleurs l'un des rares avantages de l'ancienne implémentation non sécurisée, les mots de passe étant lisibles, la migration 
+vers un stockage sécurisé est directement possible.  
+
+**Conversion des rôles**  
+Le champ `admin` booléen doit être converti en `role_id` :
+- `admin = TRUE` → rôle `ADMIN`
+- `admin = FALSE` → rôle `CLIENT`
+
+Les nouveaux rôles `SERVICE_COMMERCIAL` et `SERVICE_LIVRAISON` devront être attribués manuellement par l'administrateur après la migration.  
+
+**Séparation commande / livraison**  
+L'ancienne table `delivery` joue les deux rôles. Pour chaque enregistrement existant, il faudra créer une entrée dans `command` et une 
+entrée dans `delivery` liées entre elles.  
+
+#### Planification de la migration
+
+La migration devra être planifiée sur un **weekend** afin de minimiser l'impact sur les utilisateurs de LiVrai. La procédure recommandée 
+est la suivante :  
+
+1. **Vendredi soir** : mise en maintenance de l'application, blocage des accès
+2. **Export des données** : extraction complète de la base MySQL via `mysqldump`
+3. **Création de la nouvelle structure** : exécution du script `init-schema.sql` sur PostgreSQL
+4. **Transformation et import des données** :
+    - Hashage bcrypt des mots de passe
+    - Conversion des rôles (`admin` → `role_id`)
+    - Création des commandes à partir des livraisons existantes
+5. **Tests de validation** : vérification de l'intégrité des données migrées
+6. **Déploiement de la nouvelle application** : mise en production sur la nouvelle stack
+7. **Dimanche soir** : remise en production et levée de la maintenance
+
+#### Remarque
+
+Le script de migration détaillé (transformation et import des données) sera produit lors de la phase d'implémentation, une fois 
+la nouvelle architecture validée. Il fera l'objet d'un livrable séparé et sera testé sur un environnement de recette avant toute exécution
+en production.
