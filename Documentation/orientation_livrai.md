@@ -171,6 +171,19 @@ graph TD
     HK --> PG
 ```
 
+### Authentification — JWT
+
+Pour la gestion de l'authentification, nous allons opter pour une approche basée sur les **JWT (JSON Web Token)**.
+
+Dans l'ancienne version, l'authentification reposait sur un système de session côté serveur. Cette approche est incompatible avec une architecture REST et 
+complique la scalabilité horizontale, si plusieurs instances du serveur tournent en parallèle, la session est perdue en changeant d'instance.
+
+Avec JWT, le serveur génère un token signé lors de la connexion et le retourne au client. Ce token est ensuite envoyé dans chaque requête HTTP via le header 
+`Authorization`. Le serveur n'a pas besoin de stocker l'état de la session, il vérifie simplement la validité du token. Cette approche est dite **stateless** et 
+s'intègre naturellement avec Spring Security et Angular.
+
+Ce choix répond directement aux enjeux de **disponibilité** et de **scalabilité** identifiés dans l'audit.
+
 ### Base de données
 
 La base de données sera migrée de **MySQL 8** vers **PostgreSQL 18**. Ce choix est imposé par le service informatique de LiVrai et répond aux besoins de robustesse et de scalabilité 
