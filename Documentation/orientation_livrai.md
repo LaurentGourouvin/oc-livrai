@@ -109,14 +109,15 @@ par rôle (Client, Administrateur, Service Commercial, Service Livraison), une �
 
 La gestion des connexions à la base de données sera assurée par un **pool de connexions HikariCP**, inclus par défaut dans Spring Boot. Contrairement à l'ancienne version qui 
 recréait une connexion à chaque instanciation de DAO, HikariCP maintient un ensemble de connexions réutilisables, ce qui améliore significativement les performances sous forte 
-charge et répond directement au risque de saturation identifié dans l'audit.  
+charge et répond directement au risque de saturation identifié dans l'audit.
 
 ```mermaid
 graph TD
     Client["Client Angular"]
 
-    subgraph Security["Spring Security"]
-        Auth["Authentification + Autorisation par rôle"]
+    subgraph Security["Spring Security + JWT"]
+        Auth["Vérification token JWT"]
+        Roles["Contrôle des rôles"]
     end
 
     subgraph Controllers["Couche Controller"]
@@ -154,8 +155,9 @@ graph TD
         HK["HikariCP - Pool de connexions"]
     end
 
-    Client -->|"API REST / JSON"| Security
-    Security --> Controllers
+    Client -->|"API REST / JSON + JWT"| Auth
+    Auth --> Roles
+    Roles --> Controllers
     AC --> AS
     UC --> US
     CC --> CS
