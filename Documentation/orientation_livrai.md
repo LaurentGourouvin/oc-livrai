@@ -65,3 +65,113 @@ Cependant deux fonctionnalités nouvelles sont à prévoir :
 
 Les fonctionnalités existantes seront conservées et retravaillées dans le cadre de la refonte
 technique, sans ajout de périmètre fonctionnel majeur.
+
+## Architecture Cible
+
+### Backend
+
+L'équipe informatique de LiVrai maîtrise l'environnement Java. Je propose une architecture backend réalisable à l'aide du framework Spring Boot.
+
+L'architecture de l'ancienne version reposait sur une architecture MVC qui n'était pas correctement implémentée. J'ai retrouvé des informations métier
+dans la partie présentation, ce qui, à terme, pourrait rendre complexe la maintenabilité du code et sa scalabilité horizontale.
+
+Pour cette nouvelle version du CRM, je propose une architecture en couches, courante dans un environnement Spring Boot. Cette architecture garde la
+même logique que l'architecture de base de l'application, donc son implémentation sera plus facile pour l'équipe et aucune formation ne sera nécessaire
+pour la compréhension de celle-ci. Le contexte métier étant bien défini et non complexe, cette architecture me semble la plus adaptée au projet.
+
+Les couches qui seront présentes :
+- Controller  → reçoit les requêtes HTTP (Remplace les `Servlets`)
+- Service     → contient la logique métier (Remplace le code métier contenu dans les `Servlets`de l'ancienne version)
+- Repository  → accès aux données (Spring Data JPA) (Remplace les `DAO`)
+- Model       → entités métier mappées sur la base de données (JPA Entities) (remplace les `Beans`)
+
+Grâce à l'architecture MVC de base de l'application, nous avons déjà nos `Controllers` qui correspondent principalement aux `Servlets`. Pour cette
+version nous aurons 5 controllers :
+1. AuthentificationController
+2. UserController
+3. CommandController
+4. DeliveryController
+5. BillController (**nouveauté**: gestion de la facturation absente de l'ancienne version)
+
+Chaque controller aura comme rôle de recevoir les requêtes HTTP du client. Une fois la requête reçue, nous allons traiter l'information à l'aide des services
+liés à ce controller. Nous aurons donc, aussi, 5 services :
+1. AuthentificationController → AuthentificationService
+2. UserController → UserService
+3. CommandController → CommandService
+4. DeliveryController → DeliveryService
+5. BillController → BillService
+
+Enfin, afin de gérer la persistance des données, l'implémentation des repositories sera utilisée dans nos services via **Spring Data JPA** (ORM Hibernate).
+Chaque entité métier disposera de son propre repository.
+
+La sécurité de l'application sera assurée par **Spring Security**, qui permettra de gérer l'authentification des utilisateurs ainsi que les autorisations
+par rôle (Client, Administrateur, Service Commercial, Service Livraison), une évolution nécessaire face au système de rôles plus complexe de cette nouvelle version.  
+
+La gestion des connexions à la base de données sera assurée par un **pool de connexions HikariCP**, inclus par défaut dans Spring Boot. Contrairement à l'ancienne version qui 
+recréait une connexion à chaque instanciation de DAO, HikariCP maintient un ensemble de connexions réutilisables, ce qui améliore significativement les performances sous forte 
+charge et répond directement au risque de saturation identifié dans l'audit.  
+
+```mermaid
+graph TD
+    Client["Client Angular"]
+
+    subgraph Security["Spring Security"]
+        Auth["Authentification + Autorisation par rôle"]
+    end
+
+    subgraph Controllers["Couche Controller"]
+        AC["AuthentificationController"]
+        UC["UserController"]
+        CC["CommandController"]
+        DC["DeliveryController"]
+        BC["BillController"]
+    end
+
+    subgraph Services["Couche Service"]
+        AS["AuthentificationService"]
+        US["UserService"]
+        CS["CommandService"]
+        DS["DeliveryService"]
+        BS["BillService"]
+    end
+
+    subgraph Repositories["Couche Repository - Spring Data JPA"]
+        UR["UserRepository"]
+        CR["CommandRepository"]
+        DR["DeliveryRepository"]
+        BR["BillRepository"]
+    end
+
+    subgraph Models["Couche Model - JPA Entities"]
+        UM["User"]
+        CM["Command"]
+        DM["Delivery"]
+        BM["Bill"]
+    end
+
+    subgraph Database["Base de données"]
+        PG["PostgreSQL 18"]
+        HK["HikariCP - Pool de connexions"]
+    end
+
+    Client -->|"API REST / JSON"| Security
+    Security --> Controllers
+    AC --> AS
+    UC --> US
+    CC --> CS
+    DC --> DS
+    BC --> BS
+    AS --> UR
+    US --> UR
+    CS --> CR
+    DS --> DR
+    BS --> BR
+    Repositories --> Models
+    Models --> HK
+    HK --> PG
+```
+
+### Base de données
+
+La base de données sera migrée de **MySQL 8** vers **PostgreSQL 18**. Ce choix est imposé par le service informatique de LiVrai et répond aux besoins de robustesse et de scalabilité 
+identifiés dans l'audit. PostgreSQL offre de meilleures garanties en termes de conformité SQL, de gestion des transactions et de performances sous forte volumétrie.  
