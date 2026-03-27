@@ -1,0 +1,54 @@
+services:
+
+  db:
+    image: postgres:18
+    container_name: livrai-db
+    environment:
+      POSTGRES_DB: livrai
+      POSTGRES_USER: livrai_user
+      POSTGRES_PASSWORD: livrai_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init-schema.sql:/docker-entrypoint-initdb.d/init-schema.sql
+      - livrai-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U livrai_user -d livrai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - livrai-network
+
+  backend:
+    build: ./backend
+    container_name: livrai-backend
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/livrai
+      SPRING_DATASOURCE_USERNAME: livrai_user
+      SPRING_DATASOURCE_PASSWORD: livrai_pass
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - livrai-network
+
+  frontend:
+    build: ./frontend
+    container_name: livrai-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - livrai-network
+
+networks:
+  livrai-network:
+    driver: bridge
+
+volumes:
+  livrai-db-data:
