@@ -737,3 +737,27 @@ Les trois services communiquent via un réseau Docker interne. Seuls le frontend
 La base de données n'est jamais accessible directement depuis l'extérieur.  
 
 Cette organisation permet de **scaler horizontalement** le backend en ajoutant des instances sans toucher au frontend ni à la base de données.
+
+## Conclusion
+
+Ce document d'architecture définit la cible technique de la refonte du CRM LiVrai, en s'appuyant directement sur les constats de l'audit réalisé 
+en première phase.  
+
+La nouvelle architecture répond aux quatre enjeux identifiés :  
+
+- **Performance** : le passage à HikariCP, l'introduction de la pagination et les index PostgreSQL
+  éliminent les goulots d'étranglement identifiés dans l'ancienne version.
+- **Disponibilité** : l'authentification JWT stateless et l'architecture Docker-ready permettent
+  une scalabilité horizontale impossible avec l'ancienne architecture à sessions.
+- **Maintenabilité** : la séparation claire des responsabilités (Controller / Service / Repository / Model)
+  côté backend et l'architecture Feature-based Angular côté frontend rendent le code plus lisible,
+  plus testable et plus facile à faire évoluer.
+- **Évolutivité** : l'API REST ouvre la plateforme à de futurs clients (application mobile,
+  intégrations tierces) sans modification du backend. La table `role` dédiée permet d'ajouter
+  de nouveaux profils utilisateurs sans restructurer la base.
+
+La migration de MySQL vers PostgreSQL, planifiée sur un weekend, permettra de conserver l'intégralité des données existantes tout 
+en bénéficiant des améliorations structurelles du nouveau schéma.  
+
+Ce document constitue la base de référence pour la phase d'implémentation. Le script de migration détaillé, les Dockerfiles et 
+la configuration Spring Security feront l'objet de livrables séparés lors du démarrage du développement.
