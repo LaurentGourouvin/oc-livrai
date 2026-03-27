@@ -1,0 +1,47 @@
+{
+  "width": 704,
+  "height": 330,
+  "cx": [
+    [ "FACTURE", 55 ],
+    [ "BILL", 165 ],
+    [ "UTILISE", 269 ],
+    [ "ADDRESS", 373 ],
+    [ "POSSEDE_ADRESSE", 514 ],
+    [ "ROLE", 655 ],
+    [ "DELIVERY", 55 ],
+    [ "GENERE", 165 ],
+    [ "COMMAND", 269 ],
+    [ "PASSE", 373 ],
+    [ "USER", 514 ],
+    [ "POSSEDE", 655 ]
+  ],
+  "cy": [
+    [ "FACTURE", 85 ],
+    [ "BILL", 85 ],
+    [ "UTILISE", 85 ],
+    [ "ADDRESS", 85 ],
+    [ "POSSEDE_ADRESSE", 85 ],
+    [ "ROLE", 85 ],
+    [ "DELIVERY", 245 ],
+    [ "GENERE", 245 ],
+    [ "COMMAND", 245 ],
+    [ "PASSE", 245 ],
+    [ "USER", 245 ],
+    [ "POSSEDE", 245 ]
+  ],
+  "shift": [
+    [ "FACTURE,DELIVERY,0", 0 ],
+    [ "FACTURE,BILL,0", 0 ],
+    [ "UTILISE,ADDRESS,0", 0 ],
+    [ "UTILISE,COMMAND,0", 0 ],
+    [ "POSSEDE_ADRESSE,USER,0", 0 ],
+    [ "POSSEDE_ADRESSE,ADDRESS,0", 0 ],
+    [ "GENERE,COMMAND,0", 0 ],
+    [ "GENERE,DELIVERY,0", 0 ],
+    [ "PASSE,USER,0", 0 ],
+    [ "PASSE,COMMAND,0", 0 ],
+    [ "POSSEDE,ROLE,0", 0 ],
+    [ "POSSEDE,USER,0", 0 ]
+  ],
+  "ratio": []
+}

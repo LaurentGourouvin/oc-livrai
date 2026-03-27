@@ -287,6 +287,7 @@ BILL (id, amount, created_at, updated_at, #delivery_id)
 ```
 
 #### MCD
+![MCD](diagrams/Next_Architecture/MCD/MCD.svg)
 
 ### Frontend
 
