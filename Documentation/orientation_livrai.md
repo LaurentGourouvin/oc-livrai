@@ -373,44 +373,36 @@ travaillant sur la feature "livraison" sait exactement où trouver tous les fich
 #### Schéma architecture front
 ```mermaid
 graph TD
-    subgraph App["Application Angular 21"]
-
-        subgraph Core["core/"]
-            Guards["Guards"]
-            Interceptors["Intercepteurs JWT"]
-            Services["Services globaux"]
-        end
-
-        subgraph Store["store/"]
-            AppState["app.state.ts - État global"]
-            subgraph Slices["Slices par feature"]
-                SA["auth slice - actions / reducer / selectors / effects"]
-                SD["delivery slice - actions / reducer / selectors / effects"]
-                SC["command slice - actions / reducer / selectors / effects"]
-                SB["billing slice - actions / reducer / selectors / effects"]
-                SU["user slice - actions / reducer / selectors / effects"]
-            end
-            AppState --> Slices
-        end
-
-        subgraph Features["features/"]
-            Auth["auth/ - component, service, model"]
-            Delivery["delivery/ - component, service, model"]
-            Command["command/ - component, service, model"]
-            Billing["billing/ - component, service, model"]
-            User["user/ - component, service, model"]
-        end
-
+    subgraph Core["core/"]
+        Guards["Guards + Intercepteurs JWT"]
     end
 
-    Auth <--> SA
-    Delivery <--> SD
-    Command <--> SC
-    Billing <--> SB
-    User <--> SU
+    subgraph Features["features/"]
+        Auth["auth/  component, service, model"]
+        Delivery["delivery/  component, service, model"]
+        Command["command/  component, service, model"]
+        Billing["billing/  component, service, model"]
+        User["user/  component, service, model"]
+    end
+
+    subgraph Store["store/ - NgRx"]
+        AppState["app.state.ts"]
+        SA["auth slice"]
+        SD["delivery slice"]
+        SC["command slice"]
+        SB["billing slice"]
+        SU["user slice"]
+        AppState --> SA & SD & SC & SB & SU
+    end
 
     Core --> Features
-    Features -->|"HTTP + JWT"| API["API REST Spring Boot"]
+    Features -.->|" "| Store
+Auth <--> SA
+Delivery <--> SD
+Command <--> SC
+Billing <--> SB
+User <--> SU
+Features -->|"HTTP + JWT"| API["API REST Spring Boot"]
 ```
 
 ### Communication front/back
@@ -437,3 +429,40 @@ Côté Angular, les routes seront protégées par des **Guards** (`AuthGuard`, `
 connecté sera redirigé vers la page de connexion. Un utilisateur connecté mais sans le bon rôle sera redirigé vers une page d'erreur.
 
 Côté backend, Spring Security vérifie le token JWT et le rôle à chaque requête, la sécurité est donc assurée aux deux niveaux.
+
+### Contrat d'API
+
+#### Ancienne architecture (Servlets)
+
+| URL | Méthode | Description |
+|-----|---------|-------------|
+| `/login` | GET | Affiche la page de connexion |
+| `/login` | POST | Traite le formulaire de connexion |
+| `/logout` | GET | Déconnecte l'utilisateur |
+| `/clients` | GET | Affiche la liste des clients |
+| `/clients` | POST | Crée un nouveau client |
+| `/livraisons` | GET | Affiche la liste des livraisons |
+| `/livraison` | POST | Accepte, refuse ou facture une livraison |
+| `/commande` | GET | Affiche le formulaire de commande |
+| `/commande` | POST | Crée une nouvelle commande |
+
+#### Nouvelle architecture (API REST Spring Boot)
+
+| Endpoint | Méthode | Rôle requis | Description |
+|----------|---------|-------------|-------------|
+| `/api/auth/login` | POST | Public | Connexion et génération du token JWT |
+| `/api/auth/register` | POST | Public | Création de compte client |
+| `/api/users` | GET | ADMIN | Liste tous les utilisateurs |
+| `/api/users/{id}` | GET | ADMIN, COMMERCIAL | Détail d'un utilisateur |
+| `/api/users/{id}` | PUT | ADMIN, CLIENT | Modification des informations |
+| `/api/users/{id}` | DELETE | ADMIN | Suppression d'un utilisateur |
+| `/api/commands` | GET | ADMIN, COMMERCIAL | Liste toutes les commandes |
+| `/api/commands` | POST | CLIENT | Crée une nouvelle commande |
+| `/api/commands/{id}` | GET | ADMIN, COMMERCIAL, CLIENT | Détail d'une commande |
+| `/api/deliveries` | GET | ADMIN, COMMERCIAL, LIVRAISON | Liste toutes les livraisons |
+| `/api/deliveries/{id}` | GET | ADMIN, COMMERCIAL, LIVRAISON, CLIENT | Détail d'une livraison |
+| `/api/deliveries/{id}/accept` | PATCH | ADMIN, LIVRAISON | Accepte une livraison |
+| `/api/deliveries/{id}/reject` | PATCH | ADMIN, LIVRAISON | Refuse une livraison |
+| `/api/bills` | GET | ADMIN, COMMERCIAL, LIVRAISON | Liste toutes les factures |
+| `/api/bills/{id}` | GET | ADMIN, COMMERCIAL, LIVRAISON | Détail d'une facture |
+| `/api/bills` | POST | ADMIN, COMMERCIAL | Crée une facture |
