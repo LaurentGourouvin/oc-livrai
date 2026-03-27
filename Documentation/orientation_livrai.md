@@ -466,3 +466,63 @@ Côté backend, Spring Security vérifie le token JWT et le rôle à chaque requ
 | `/api/bills` | GET | ADMIN, COMMERCIAL, LIVRAISON | Liste toutes les factures |
 | `/api/bills/{id}` | GET | ADMIN, COMMERCIAL, LIVRAISON | Détail d'une facture |
 | `/api/bills` | POST | ADMIN, COMMERCIAL | Crée une facture |
+
+### Architecture globale cible
+
+```mermaid
+graph TD
+    subgraph Frontend["Frontend - Angular 21"]
+        Core["core/ - Guards, Intercepteurs JWT"]
+        subgraph Features["features/"]
+            Auth["auth/"]
+            Delivery["delivery/"]
+            Command["command/"]
+            Billing["billing/"]
+            User["user/"]
+        end
+        subgraph Store["store/ - NgRx"]
+            AppState["app.state.ts"]
+        end
+        Core --> Features
+        Features <--> Store
+    end
+
+    subgraph Backend["Backend - Spring Boot 3.4.x / Java 21"]
+        subgraph Security["Spring Security + JWT"]
+            TokenCheck["Vérification token + rôles"]
+        end
+        subgraph Controllers["Couche Controller"]
+            AC["AuthentificationController"]
+            UC["UserController"]
+            CC["CommandController"]
+            DC["DeliveryController"]
+            BC["BillController"]
+        end
+        subgraph Services["Couche Service"]
+            AS["AuthentificationService"]
+            US["UserService"]
+            CS["CommandService"]
+            DS["DeliveryService"]
+            BS["BillService"]
+        end
+        subgraph Repositories["Couche Repository - Spring Data JPA"]
+            Repos["UserRepo / CommandRepo / DeliveryRepo / BillRepo"]
+        end
+        subgraph Models["Couche Model - JPA Entities"]
+            Entities["User / Command / Delivery / Bill"]
+        end
+        TokenCheck --> Controllers
+        Controllers --> Services
+        Services --> Repositories
+        Repositories --> Models
+    end
+
+    subgraph Database["Base de données - PostgreSQL 18"]
+        HikariCP["HikariCP - Pool de connexions"]
+        Tables["Tables: role, user, address, command, delivery, bill"]
+        HikariCP --> Tables
+    end
+
+    Features -->|"HTTP + JWT - JSON"| TokenCheck
+    Models --> HikariCP
+```
