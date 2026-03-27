@@ -173,7 +173,7 @@ graph TD
     HK --> PG
 ```
 
-### Authentification — JWT
+#### Authentification - JWT
 
 Pour la gestion de l'authentification, nous allons opter pour une approche basée sur les **JWT (JSON Web Token)**.
 
@@ -186,7 +186,7 @@ s'intègre naturellement avec Spring Security et Angular.
 
 Ce choix répond directement aux enjeux de **disponibilité** et de **scalabilité** identifiés dans l'audit.
 
-### Base de données - Ancienne structure
+#### Base de données - Ancienne structure
 
 La base de données actuelle est composée de seulement deux tables : `user` et `delivery`.  
 
@@ -203,7 +203,7 @@ fréquemment interrogées (`userId`, `status`).
 
 Cette structure minimale ne peut pas supporter les nouveaux besoins fonctionnels et devra être entièrement repensée.
 
-### Base de données - Nouvelle structure  
+#### Base de données - Nouvelle structure  
 
 La base de données sera migrée de **MySQL 8** vers **PostgreSQL 18**. Ce choix est imposé par le service informatique de LiVrai et répond aux besoins de robustesse et de scalabilité
 identifiés dans l'audit. PostgreSQL offre de meilleures garanties en termes de conformité SQL, de gestion des transactions et de performances sous forte volumétrie.  
@@ -287,3 +287,153 @@ BILL (id, amount, created_at, updated_at, #delivery_id)
 ```
 
 #### MCD
+
+### Frontend
+
+Concernant la partie frontend, l'application actuelle repose sur un environnement Java complet. Les vues sont générées côté serveur via 
+des fichiers **JSP**. Une des exigences techniques est de transformer cet aspect en utilisant le framework **Angular 21 (LTS)** afin d'obtenir 
+une **Single Page Application (SPA)** plus interactive et plus réactive pour l'utilisateur.  
+
+Contrairement à l'ancienne architecture où chaque action entraînait un rechargement complet de la page, Angular permettra de mettre à jour 
+uniquement les parties concernées de l'interface, sans rechargement.  
+
+#### Gestion d'état - NgRx
+
+Pour gérer l'état de l'application, nous allons mettre en place **NgRx**, une bibliothèque de gestion d'état inspirée du pattern Redux.
+
+Dans une application Angular sans gestion d'état centralisée, chaque composant gère ses propres données. Cela devient rapidement problématique
+quand plusieurs composants ont besoin des mêmes informations, par exemple, le statut d'une livraison affiché simultanément dans la liste et
+dans le détail.
+
+NgRx résout ce problème en centralisant toutes les données dans un **store** unique et immuable.
+Pour LiVrai, cela sera particulièrement utile pour :
+
+- La gestion de la session utilisateur (token JWT, rôle)
+- La liste des livraisons partagée entre plusieurs vues
+- La synchronisation des statuts de livraison en temps réel
+
+
+#### Architecture
+
+Pour la partie Angular nous allons adopter une architecture **Standalone Feature-based**, qui est le standard recommandé depuis Angular 17
+et par défaut dans Angular 21.
+
+L'ancienne approche par modules (`NgModule`) découpait l'application de façon **technique**, tous les composants ensemble, tous les services
+ensemble, tous les modèles ensemble. Cette organisation devient rapidement difficile à maintenir quand l'application grandit : modifier
+une fonctionnalité implique de naviguer dans plusieurs dossiers distincts.
+
+L'architecture Feature-based adopte un découpage **métier**, tout ce qui concerne une fonctionnalité est regroupé au même endroit.
+
+Pour LiVrai, cela donnera :
+```
+app/
+  core/           -> services globaux, guards, intercepteurs JWT
+  store/          -> store global
+    app.state.ts  -> interface globale qui agrège tous les états
+  features/
+    auth/         -> connexion, inscription
+    delivery/     -> liste et suivi des livraisons
+    command/      -> création de commande
+    billing/      -> facturation
+    user/         -> gestion du profil client
+```
+
+Le store **NgRx** viendra compléter cette architecture en ajoutant une couche de gestion d'état centralisée.
+
+Chaque feature disposera de ses propres fichiers organisés ainsi :
+```
+app/
+  features/
+    delivery/
+      delivery.component.ts  -> affichage
+      delivery.service.ts    -> appels HTTP vers l'API REST
+      delivery.model.ts      -> interfaces TypeScript
+      store/                 -> slice delivery
+        delivery.actions.ts    -> actions déclenchées par l'utilisateur
+        delivery.reducer.ts    -> mise à jour de l'état
+        delivery.selectors.ts  -> lecture de l'état
+        delivery.effects.ts    -> appels API via le service
+```
+
+Le flux de données suit le pattern suivant :
+```
+Composant → dispatch action → Effect → Service → API REST
+                                 ↓
+                             Reducer → Store → Selector → Composant
+```
+
+Les **services** sont appelés par les **effects** NgRx pour réaliser les appels HTTP, jamais directement par les composants.
+Cette séparation garantit que l'état de l'application est **prévisible et centralisé**, plusieurs composants peuvent lire
+les mêmes données sans risque d'incohérence, ce qui est particulièrement important pour le suivi en temps réel des statuts
+de livraison.
+
+Cette organisation s'aligne naturellement avec les controllers du backend et facilite la maintenance, un développeur
+travaillant sur la feature "livraison" sait exactement où trouver tous les fichiers concernés.
+
+#### Schéma architecture front
+```mermaid
+graph TD
+    subgraph App["Application Angular 21"]
+
+        subgraph Core["core/"]
+            Guards["Guards"]
+            Interceptors["Intercepteurs JWT"]
+            Services["Services globaux"]
+        end
+
+        subgraph Store["store/"]
+            AppState["app.state.ts - État global"]
+            subgraph Slices["Slices par feature"]
+                SA["auth slice - actions / reducer / selectors / effects"]
+                SD["delivery slice - actions / reducer / selectors / effects"]
+                SC["command slice - actions / reducer / selectors / effects"]
+                SB["billing slice - actions / reducer / selectors / effects"]
+                SU["user slice - actions / reducer / selectors / effects"]
+            end
+            AppState --> Slices
+        end
+
+        subgraph Features["features/"]
+            Auth["auth/ - component, service, model"]
+            Delivery["delivery/ - component, service, model"]
+            Command["command/ - component, service, model"]
+            Billing["billing/ - component, service, model"]
+            User["user/ - component, service, model"]
+        end
+
+    end
+
+    Auth <--> SA
+    Delivery <--> SD
+    Command <--> SC
+    Billing <--> SB
+    User <--> SU
+
+    Core --> Features
+    Features -->|"HTTP + JWT"| API["API REST Spring Boot"]
+```
+
+### Communication front/back
+
+La communication entre le frontend Angular et le backend Spring Boot repose sur une **API REST** exposée par le backend. Les échanges se 
+font exclusivement au format **JSON** via le module `HttpClient` d'Angular.
+
+#### Authentification et gestion du JWT
+
+Lors de la connexion, le backend retourne un **token JWT** que le frontend stocke localement. Ce token est ensuite automatiquement ajouté à 
+chaque requête HTTP sortante grâce à un **intercepteur HTTP** (`AuthInterceptor`) configuré dans le dossier `core/`.
+
+Le flux d'authentification est le suivant :
+
+1. L'utilisateur saisit ses identifiants
+2. Angular envoie une requête `POST /api/auth/login`
+3. Le backend valide et retourne un token JWT
+4. L'intercepteur ajoute le token dans le header `Authorization: Bearer <token>` de chaque requête suivante
+5. Spring Security valide le token à chaque requête entrante
+
+#### Protection des routes
+
+Côté Angular, les routes seront protégées par des **Guards** (`AuthGuard`, `RoleGuard`) configurés dans `core/`. Un utilisateur non 
+connecté sera redirigé vers la page de connexion. Un utilisateur connecté mais sans le bon rôle sera redirigé vers une page d'erreur.
+
+Côté backend, Spring Security vérifie le token JWT et le rôle à chaque requête, la sécurité est donc assurée aux deux niveaux.
