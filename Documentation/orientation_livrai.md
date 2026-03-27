@@ -184,7 +184,104 @@ s'intègre naturellement avec Spring Security et Angular.
 
 Ce choix répond directement aux enjeux de **disponibilité** et de **scalabilité** identifiés dans l'audit.
 
-### Base de données
+### Base de données - Ancienne structure
 
-La base de données sera migrée de **MySQL 8** vers **PostgreSQL 18**. Ce choix est imposé par le service informatique de LiVrai et répond aux besoins de robustesse et de scalabilité 
+La base de données actuelle est composée de seulement deux tables : `user` et `delivery`.  
+
+La table `user` stocke l'ensemble des utilisateurs de l'application. La gestion des rôles repose sur un simple champ booléen `admin`, ce qui ne 
+permet de distinguer que deux types d'utilisateurs. Cette approche est incompatible avec le nouveau système de rôles à quatre niveaux attendu dans
+la refonte. De plus, les mots de passe sont stockés en clair et aucune information complémentaire sur le client (adresse, téléphone...) n'est présente.  
+
+La table `delivery` stocke les livraisons liées à un utilisateur via une clé étrangère `userId`. Le statut est un champ `VARCHAR` libre sans contrainte 
+sur les valeurs possibles, ce qui représente un risque d'incohérence des données. Le prix est nullable car il n'est renseigné qu'au moment de la facturation, 
+il n'existe pas de table dédiée à la facturation.  
+
+On notera également l'absence de séparation entre la notion de **commande** et de **livraison**, ainsi que l'absence d'index explicites sur les colonnes 
+fréquemment interrogées (`userId`, `status`).
+
+Cette structure minimale ne peut pas supporter les nouveaux besoins fonctionnels et devra être entièrement repensée.
+
+### Base de données - Nouvelle structure  
+
+La base de données sera migrée de **MySQL 8** vers **PostgreSQL 18**. Ce choix est imposé par le service informatique de LiVrai et répond aux besoins de robustesse et de scalabilité
 identifiés dans l'audit. PostgreSQL offre de meilleures garanties en termes de conformité SQL, de gestion des transactions et de performances sous forte volumétrie.  
+
+La nouvelle base de données PostgreSQL sera repensée pour répondre aux besoins fonctionnels
+de la refonte. Elle s'articulera autour des entités métier suivantes :
+
+**`user`** : Stocke les informations de tous les utilisateurs de la plateforme. Le champ booléen `admin` est remplacé par une relation vers 
+une table `role`, permettant une gestion fine des quatre niveaux d'accès. Le mot de passe sera hashé (bcrypt).
+
+**`role`** : Table dédiée à la gestion des rôles (Client, Administrateur, Service Commercial, Service Livraison). Cette séparation permet 
+d'ajouter de nouveaux rôles sans modifier la structure de la table `user`.
+
+**`address`** : Stocke les adresses de livraison liées à un utilisateur. Un utilisateur peut posséder plusieurs adresses. Cette table répond 
+au besoin de gestion des informations client mentionné dans la fiche descriptive.
+
+**`command`** : Représente une commande passée par un client. La séparation entre commande et livraison permet de mieux modéliser le cycle de vie d'une demande.
+
+**`delivery`** : Représente la livraison associée à une commande. Le statut sera contraint par une énumération afin d'éviter les incohérences de données constatées dans 
+l'ancienne version.
+
+**`bill`** : Table dédiée à la facturation, absente de l'ancienne version. Elle permettra au Service Commercial et au Service Livraison d'accéder à la facturation de façon structurée.  
+
+Afin de concevoir la base de donnée, j'utilise la méthide MERISE pour m'aider à cette conception.
+
+#### Dictionnaire de données
+| Attribut | Entité | Type | Contraintes | Description |
+|----------|--------|------|-------------|-------------|
+| **Role** | | | | |
+| id | Role | SERIAL | PK, NOT NULL | Identifiant unique |
+| name | Role | VARCHAR(64) | NOT NULL, UNIQUE | Nom du rôle (CLIENT, ADMIN, COMMERCIAL, LIVRAISON) |
+| created_at | Role | TIMESTAMP | NOT NULL | Date de création |
+| updated_at | Role | TIMESTAMP | NOT NULL | Date de dernière modification |
+| **User** | | | | |
+| id | User | SERIAL | PK, NOT NULL | Identifiant unique |
+| email | User | VARCHAR(255) | NOT NULL, UNIQUE | Adresse email de connexion |
+| name | User | VARCHAR(128) | NOT NULL | Nom complet |
+| password | User | VARCHAR(255) | NOT NULL | Mot de passe hashé (bcrypt) |
+| phone | User | VARCHAR(20) | NULLABLE | Numéro de téléphone |
+| created_at | User | TIMESTAMP | NOT NULL | Date de création du compte |
+| updated_at | User | TIMESTAMP | NOT NULL | Date de dernière modification |
+| role_id | User | INT | FK → Role, NOT NULL | Rôle de l'utilisateur |
+| **Address** | | | | |
+| id | Address | SERIAL | PK, NOT NULL | Identifiant unique |
+| street | Address | VARCHAR(255) | NOT NULL | Rue et numéro |
+| city | Address | VARCHAR(128) | NOT NULL | Ville |
+| zip_code | Address | VARCHAR(16) | NOT NULL | Code postal |
+| country | Address | VARCHAR(64) | NOT NULL | Pays |
+| created_at | Address | TIMESTAMP | NOT NULL | Date de création |
+| updated_at | Address | TIMESTAMP | NOT NULL | Date de dernière modification |
+| user_id | Address | INT | FK → User, NOT NULL | Propriétaire de l'adresse |
+| **Command** | | | | |
+| id | Command | SERIAL | PK, NOT NULL | Identifiant unique |
+| volume | Command | INT | NOT NULL, > 0 | Volume en m³ |
+| weight | Command | INT | NOT NULL, > 0 | Poids en kg |
+| created_at | Command | TIMESTAMP | NOT NULL | Date de création |
+| updated_at | Command | TIMESTAMP | NOT NULL | Date de dernière modification |
+| user_id | Command | INT | FK → User, NOT NULL | Client ayant passé la commande |
+| address_id | Command | INT | FK → Address, NOT NULL | Adresse de livraison |
+| **Delivery** | | | | |
+| id | Delivery | SERIAL | PK, NOT NULL | Identifiant unique |
+| status | Delivery | VARCHAR(32) | NOT NULL, ENUM | Statut (PENDING, ACCEPTED, REJECTED, DONE) |
+| scheduled_at | Delivery | TIMESTAMP | NULLABLE | Date prévue de livraison |
+| created_at | Delivery | TIMESTAMP | NOT NULL | Date de création |
+| updated_at | Delivery | TIMESTAMP | NOT NULL | Date de dernière modification |
+| command_id | Delivery | INT | FK → Command, NOT NULL, UNIQUE | Commande associée (1-1) |
+| **Bill** | | | | |
+| id | Bill | SERIAL | PK, NOT NULL | Identifiant unique |
+| amount | Bill | DECIMAL(10,2) | NOT NULL, > 0 | Montant de la facture |
+| created_at | Bill | TIMESTAMP | NOT NULL | Date de facturation |
+| updated_at | Bill | TIMESTAMP | NOT NULL | Date de dernière modification |
+| delivery_id | Bill | INT | FK → Delivery, NOT NULL, UNIQUE | Livraison facturée (1-1) |
+#### MLD
+```
+ROLE (id, name, created_at, updated_at)
+USER (id, email, name, password, phone, created_at, updated_at, #role_id)
+ADDRESS (id, street, city, zip_code, country, created_at, updated_at, #user_id)
+COMMAND (id, volume, weight, created_at, updated_at, #user_id, #address_id)
+DELIVERY (id, status, scheduled_at, created_at, updated_at, #command_id)
+BILL (id, amount, created_at, updated_at, #delivery_id)
+```
+
+#### MCD
