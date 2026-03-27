@@ -674,3 +674,90 @@ est la suivante :
 Le script de migration détaillé (transformation et import des données) sera produit lors de la phase d'implémentation, une fois 
 la nouvelle architecture validée. Il fera l'objet d'un livrable séparé et sera testé sur un environnement de recette avant toute exécution
 en production.
+
+## Réponses aux contraintes non fonctionnelles
+
+Cette section synthétise comment les choix d'architecture retenus répondent aux contraintes non fonctionnelles identifiées dans l'audit.
+
+### Performance
+
+| Contrainte | Réponse architecturale                                                               |
+|------------|--------------------------------------------------------------------------------------|
+| Connexions multiples à la BDD | **HikariCP** : pool de connexions inclus par défaut dans Spring Boot                 |
+| Requêtes sans pagination | Pagination obligatoire sur tous les endpoints de liste via Spring Data JPA           |
+| Absence d'index | Index explicites définis sur `email`, `role_id`, `user_id`, `status` dans PostgreSQL |
+| Rendu serveur JSP lent | **Angular SPA** : rendu côté client, seules les données transitent via l'API         |
+
+### Disponibilité
+
+| Contrainte | Réponse architecturale                                                                                    |
+|------------|-----------------------------------------------------------------------------------------------------------|
+| Sessions serveur bloquantes | **JWT stateless** : aucun état stocké côté serveur, chaque instance peut traiter n'importe quelle requête |
+| Architecture monolithique | Séparation **front/back** : les deux peuvent être redémarrés indépendamment                               |
+| Pics d'activité | Architecture **Docker-ready** : permet de scaler horizontalement en ajoutant des instances                |
+
+### Maintenabilité
+
+| Contrainte | Réponse architecturale                                                                     |
+|------------|--------------------------------------------------------------------------------------------|
+| Logique métier dans les contrôleurs | **Architecture en couches** : Controller / Service / Repository / Model clairement séparés |
+| Mélange présentation/métier (JSP) | **Séparation front/back** : Angular gère la présentation, Spring Boot gère la logique      |
+| Absence de tests révélée par le bug 405 | Architecture en couches facilitant l'écriture de tests unitaires par couche                |
+| Code verbeux (DAO manuels) | **Spring Data JPA** : repositories générés automatiquement, moins de code à maintenir      |
+
+### Évolutivité
+
+| Contrainte | Réponse architecturale                                                                            |
+|------------|---------------------------------------------------------------------------------------------------|
+| Architecture monolithique JSP/Servlet | **API REST** : tout nouveau client (mobile, partenaire...) peut consommer l'API sans modification |
+| Système de rôles limité (booléen) | Table `role` dédiée : ajout d'un nouveau rôle sans modifier la structure                          |
+| Stack obsolète (Java EE, JSP) | **Spring Boot 3.4.x + Angular 21** : stack moderne avec support LTS garanti                       |
+| Déploiement manuel | **Docker** : conteneurisation facilitant les déploiements et les montées de version               |
+
+### Volumétrie et montée en charge
+
+| Contrainte | Réponse architecturale                                                            |
+|------------|-----------------------------------------------------------------------------------|
+| Absence de pagination | Pagination systématique sur les endpoints de liste                                |
+| Absence d'index | Index sur les colonnes fréquemment interrogées (`status`, `user_id`...)           |
+| MySQL → limitations à grande échelle | **PostgreSQL 18** : meilleure gestion des transactions et des grandes volumétries |
+| Deux tables pour tout gérer | Schéma normalisé en 6 tables : meilleure performance des requêtes ciblées         |
+
+### Conteneurisation Docker
+
+L'application est conçue pour être **Docker-ready**. Chaque composant de la stack sera conteneurisé dans un service dédié :  
+
+| Service | Image | Rôle |
+|---------|-------|------|
+| `livrai-backend` | Image Java 21 + Spring Boot | API REST |
+| `livrai-frontend` | Image Node + Angular + Nginx | SPA Angular servie via Nginx |
+| `livrai-db` | `postgres:18` | Base de données PostgreSQL |
+
+Les trois services communiquent via un réseau Docker interne. Seuls le frontend (port 80) et le backend (port 8080) sont exposés à l'extérieur. 
+La base de données n'est jamais accessible directement depuis l'extérieur.  
+
+Cette organisation permet de **scaler horizontalement** le backend en ajoutant des instances sans toucher au frontend ni à la base de données.
+
+## Conclusion
+
+Ce document d'architecture définit la cible technique de la refonte du CRM LiVrai, en s'appuyant directement sur les constats de l'audit réalisé 
+en première phase.  
+
+La nouvelle architecture répond aux quatre enjeux identifiés :  
+
+- **Performance** : le passage à HikariCP, l'introduction de la pagination et les index PostgreSQL
+  éliminent les goulots d'étranglement identifiés dans l'ancienne version.
+- **Disponibilité** : l'authentification JWT stateless et l'architecture Docker-ready permettent
+  une scalabilité horizontale impossible avec l'ancienne architecture à sessions.
+- **Maintenabilité** : la séparation claire des responsabilités (Controller / Service / Repository / Model)
+  côté backend et l'architecture Feature-based Angular côté frontend rendent le code plus lisible,
+  plus testable et plus facile à faire évoluer.
+- **Évolutivité** : l'API REST ouvre la plateforme à de futurs clients (application mobile,
+  intégrations tierces) sans modification du backend. La table `role` dédiée permet d'ajouter
+  de nouveaux profils utilisateurs sans restructurer la base.
+
+La migration de MySQL vers PostgreSQL, planifiée sur un weekend, permettra de conserver l'intégralité des données existantes tout 
+en bénéficiant des améliorations structurelles du nouveau schéma.  
+
+Ce document constitue la base de référence pour la phase d'implémentation. Le script de migration détaillé, les Dockerfiles et 
+la configuration Spring Security feront l'objet de livrables séparés lors du démarrage du développement.
